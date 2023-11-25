@@ -263,7 +263,7 @@ debit() 함수가 올바른 인수로 호출되는지 확인하기 위해 아래
 
 목과 스텁은 분명 차이가 있지만 특정 멤버 함수를 스텁하는데만 사용하고자 하더라도 목을 만들어야한다.
 
-예제 코드입니다.
+샘플 코드입니다.
 
 아래는 PaymentResult settleInvoice() 함수를 인출 전에 계좌 잔액이 부족한지 확인할 수 있도록 수정한 코드입니다.
 
@@ -292,7 +292,7 @@ BankAccount 의 구현체를 사용하여 실제 은행계좌 잔액을 읽어�
 
 외부로부터 테스트를 보호해야하는 상황이기 때문에 BankAccount.getBalance() 에 스텁을 사용하면된다.
 
-예제 코드입니다.
+테스트 코드입니다.
 
 ```java
   void testSettleInvoice_insufficientFundsCorrectResultReturned() {
@@ -357,17 +357,20 @@ settleInvoice() 함수 테스트를 위해 목 사용 시 , 송장 잔액이 5�
 
 실제 의존성에 대한 코드를 유지보수하는 팀이 일반적으로 페이크 코드도 유지보수해야 하는데, 실제 의존성에 대한 코드 계약이 변경되면 페이크의 코드 계약도 동일하게 변경되어야 하기 때문이다.  
 
-예제 코드 입니다.
+샘플 코드 입니다.
 
 ```java
   class FakeBankAccount implements BankAccount { // BankAccount 인터페이스를 구현한다.
 
-      private MonetaryAmount balance; // 멤버 변수를 통해서 상태 추적
+      private MonetaryAmount balance; // 멤버 변수를 통해서 은행의 백엔드 시스템과의 통신을 대체하여 상태를 추적한다.
 
       FakeBankAccount(MonetaryAmount startingBalance) {
          this.balacne = startingBalance;
       }
 
+      /** debit() , credit() 함수가 마이너스 금액으로 호출되는 경우 예외를 발생시키도록 한다. -> 목과 스텁에서의 문제점 보안 
+       *  실제 구현체와 동일한 방식으로 동작한다.  
+       */
       @Override
       void debit(MonetaryAmount amount) {
          if(amonut.isNegative()) { 
@@ -385,7 +388,7 @@ settleInvoice() 함수 테스트를 위해 목 사용 시 , 송장 잔액이 5�
       }
 
       @Override
-      void credit(MonetaryAmount amount) {
+      void transfer(MonetaryAmount amount) {
          balance.add(amount);
       }
 
@@ -393,12 +396,31 @@ settleInvoice() 함수 테스트를 위해 목 사용 시 , 송장 잔액이 5�
       MonetaryAmount getBalance() {
          return roundDownToNearest10(balance); // 잔액은 가장 가까운 10의 배수로 반내림 하여 반환한다.
       }
-
-      MonetaryAmount getActualBalance() { // 테스트에서 반내림되지 않은 정확한 잔액을 확인할 수 있는 추가 함수
+      /** 실제 구현체에서 구현하는 기능과 별개의 기능으로 테스트 환경에서 실제 잔액을 확인할 수 있게끔 추가 */
+      MonetaryAmount getActualBalance() { 
          return balance;
       }
   }
 ```
+
+위 페이크 객체를 통한 테스트 코드입니다.
+
+```java
+  void testSettleInvoice_negetiveInvoiceBalance() {
+
+      FakeAccount fakeAccount = new FakeAccount(new MonetaryAmount(100.0, Currency.USE)); // 100 달러 잔액으로 초기화 되어 생성된 페이크 객체
+      MonetaryAmmount invoiceBalance = new MonetaryAmmount(-5.0, Currency.USD); // 마이너스 송장 잔액
+      Invoice invoice = new Invoice(invoiceBalance, "id");
+
+      PaymentManager paymentManager = new PaymentManager().settleInvoice(fakeAccount,invoice); // fakeAccount 로 호출되는 테스트대상 코드
+      
+      assertThat(fakeAccount.getActualBalance()).isEqualTo(new MonetaryAmount(105.0, Currency.USE)); // 새로운 계좌 잔액이 105 달러인지 확인
+  }
+```
+
+테스트 코드는 버그가 있으면 실패하고, 코드 작성자는 이를 인지하여 자신의 코드에 버그가 있음을 인지해야한다.
+
+따라서 위 예제 코드의 테스트 케이스는 정확히 이러한 일을 해주기 때문에 유용하다고 볼 수 있다.
 
 
 ### 10.4.6 목에 대한 의견  
